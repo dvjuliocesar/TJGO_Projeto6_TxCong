@@ -6,12 +6,12 @@ app = Flask(__name__, template_folder='templates', static_folder='static')
 app.secret_key = 'chave_secreta_segura_jurimetria'
 
 # Inicializa a classe ProcessosAnalisador com o arquivo CSV
-analisador = ProcessosAnalisador("uploads")
+analisador = ProcessosAnalisador("dataclean")
 
 @app.route('/')
 def tabela():
     # Parâmetros com valores padrão
-    filtro_comarca = request.args.get('comarca', 'GOIANIRA')
+    filtro_comarca = request.args.get('comarca', 'ABADIÂNIA')
     filtro_ano_str = request.args.get('ano', '2020')
 
     # Validação do Ano

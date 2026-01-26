@@ -11,7 +11,7 @@ class ProcessosAnalisador:
     
     def _carregar_dados(self, arquivo_csv):
        # Listar os arquivos CSV na pasta 'uploads'
-        arquivo_csv = glob.glob('uploads/processos_*.csv')
+        arquivo_csv = glob.glob('dataclean/processos_*.csv')
         # Carregar os arquivos CSV e concatenar em um único DataFrame
         dfs = []
         for arquivo in arquivo_csv:  # lista/iterável com os caminhos tipo 'processos_1.csv', 'processos_2.csv', ...
@@ -55,11 +55,11 @@ class ProcessosAnalisador:
         anos_dist = self.df['ano_dist'].dropna().unique()
         anos_baixa = self.df['ano_baixa'].dropna().unique()
         todos_anos = np.unique(np.concatenate((anos_dist, anos_baixa)))
-        return sorted([int(x) for x in todos_anos if x > 2016]) # Filtro básico de sanidade
+        return sorted([int(x) for x in todos_anos if x >= 2020])
     
     def calcular_estatisticas(self, comarca, ano_selecionado):
         """
-        Calcula estatísticas baseadas no Ano de Referência (Jurimetria histórica).
+        Calcula estatísticas baseadas no fluxo anual acumulado.
         """
         if self.df.empty: return pd.DataFrame()
 
@@ -69,53 +69,58 @@ class ProcessosAnalisador:
         # Se não houver dados da comarca
         if df_c.empty: return pd.DataFrame()
 
-        # 2. Definição das Métricas
+        # 2. Filtrar janela confiável (a partir de 2020)
+        START = pd.Timestamp('2020-01-01')
+        df_f = df_c[df_c['data_distribuicao'] >= START].copy()
+        
+        if df_f.empty: return pd.DataFrame()
 
-        # A) Novos Casos (Distribuídos): Exatamente no ano selecionado
-        # Ignora data de baixa.
-        distribuidos = df_c[df_c['ano_dist'] == ano_selecionado]
-        grp_dist = distribuidos.groupby(['nome_area_acao', 'comarca', 'serventia']).size().rename('Distribuídos')
+        # 3. Converter ano para período
+        ano_periodo = pd.Period(str(ano_selecionado), freq='Y')
 
-        # B) Casos Finalizados (Baixados): Exatamente no ano selecionado
-        baixados = df_c[df_c['ano_baixa'] == ano_selecionado]
-        grp_baix = baixados.groupby(['nome_area_acao', 'comarca', 'serventia']).size().rename('Baixados')
+        # 4. Calcular fluxos acumulados até o ano de referência
+        # Distribuídos acumulados até o ano
+        distribuidos_acum = df_f[df_f['data_distribuicao'].dt.to_period('Y') <= ano_periodo]
+        
+        # Baixados acumulados até o ano
+        baixados_acum = df_f[df_f['data_baixa'].dt.to_period('Y') <= ano_periodo]
+        
+        # 5. Agrupar por área e serventia
+        grp_dist_acum = distribuidos_acum.groupby(['nome_area_acao', 'comarca']).size().rename('Distribuídos_acum')
+        grp_baix_acum = baixados_acum.groupby(['nome_area_acao', 'comarca']).size().rename('Baixados_acum')
+        
+        # 6. Calcular fluxos do ano específico
+        distribuidos_ano = df_f[df_f['data_distribuicao'].dt.to_period('Y') == ano_periodo]
+        baixados_ano = df_f[df_f['data_baixa'].dt.to_period('Y') == ano_periodo]
+        
+        grp_dist_ano = distribuidos_ano.groupby(['nome_area_acao', 'comarca']).size().rename('Distribuídos')
+        grp_baix_ano = baixados_ano.groupby(['nome_area_acao', 'comarca']).size().rename('Baixados')
 
-        # C) Pendentes (Acervo Histórico - Opção B):
-        # Regra: Processo distribuído ATÉ o ano selecionado E (Não baixado OU Baixado APÓS o ano selecionado)
-        # Filtra: (Distribuído no Ano Selecionado) E (Data de Baixa é Nula)
-        condicao_pendente = (
-            (df_c['ano_dist'] == ano_selecionado) & 
-            (df_c['ano_baixa'].isna())
-        )
+        # 7. Consolidar todos os dados
+        df_final = pd.concat([grp_dist_ano, grp_baix_ano, grp_dist_acum, grp_baix_acum], 
+                            axis=1).fillna(0).astype(int).reset_index()
 
-        pendentes = df_c[condicao_pendente]
-        grp_pend = pendentes.groupby(['nome_area_acao', 'comarca', 'serventia']).size().rename('Pendentes')
+        # 8. Calcular pendentes no fim do ano
+        df_final['Pendentes'] = (df_final['Distribuídos_acum'] - df_final['Baixados_acum']).clip(lower=0)
 
-        """condicao_pendente = (
-            (df_c['ano_baixa'] <= ano_selecionado) & 
-            ( (df_c['ano_baixa'].isna()) | (df_c['ano_baixa'] > ano_selecionado) )
-        )
-        pendentes = df_c[condicao_pendente]
-        grp_pend = pendentes.groupby(['nome_area_acao', 'comarca', 'serventia']).size().rename('Pendentes')"""
-
-        # 3. Consolidação
-        df_final = pd.concat([grp_dist, grp_baix, grp_pend], axis=1).fillna(0).astype(int).reset_index()
-
-        # 4. Cálculo da Taxa de Congestionamento
-        # Fórmula: Pendentes / (Pendentes + Baixados)
-        soma_denominador = df_final['Pendentes'] + df_final['Baixados']
+        # 9. Calcular Taxa de Congestionamento (fórmula: Pendentes / (Pendentes + Baixados_ano))
+        denominador = df_final['Pendentes'] + df_final['Baixados']
         
         df_final['Taxa de Congestionamento (%)'] = np.where(
-            soma_denominador > 0,
-            (df_final['Pendentes'] / soma_denominador) * 100,
+            denominador > 0,
+            (df_final['Pendentes'] / denominador) * 100,
             0.0
         ).round(2)
 
-        # 5. Linha de Totais
+        # 10. Selecionar colunas para apresentação
+        df_final = df_final[['nome_area_acao', 'comarca',
+                           'Distribuídos', 'Baixados', 'Pendentes',
+                           'Taxa de Congestionamento (%)']]
+
+        # 11. Linha de Totais
         totais = {
             'nome_area_acao': 'TOTAL',
             'comarca': '',
-            'serventia': '',
             'Distribuídos': df_final['Distribuídos'].sum(),
             'Baixados': df_final['Baixados'].sum(),
             'Pendentes': df_final['Pendentes'].sum()
@@ -130,49 +135,63 @@ class ProcessosAnalisador:
         
         return df_final
 
-    def plotar_graficos_ano(self, ano_selecionado): 
+    def plotar_graficos_ano(self, ano_selecionado):
         """
         Gera gráfico de barras comparativo de Taxa de Congestionamento por Comarca/Área no Ano X.
-        Usa a mesma lógica de 'Resíduo Histórico' da tabela.
+        Usa a lógica de fluxo anual acumulado.
         """
         if self.df.empty: return px.bar(title="Sem dados")
 
-        # Preparar dados agregados por Comarca e Área
-        # Pendentes (Estoque no ano)
-        cond_pend = (
-            (self.df['ano_dist'] == ano_selecionado) & 
-            (self.df['ano_baixa'].isna())
-        )
-
-        """cond_pend = (
-            (self.df['ano_dist'] <= ano_selecionado) & 
-            ((self.df['ano_baixa'].isna()) | (self.df['ano_baixa'] > ano_selecionado))
-        )"""
+        # 1. Filtrar janela confiável
+        START = pd.Timestamp('2020-01-01')
+        df_f = self.df[self.df['data_distribuicao'] >= START].copy()
         
-        pendentes = self.df[cond_pend].groupby(['comarca', 'nome_area_acao']).size().rename('pendentes')
+        if df_f.empty: return px.bar(title="Sem dados")
 
-        # Baixados (Produção no ano)
-        cond_baix = (self.df['ano_baixa'] == ano_selecionado)
-        baixados = self.df[cond_baix].groupby(['comarca', 'nome_area_acao']).size().rename('baixados')
+        # 2. Converter ano para período
+        ano_periodo = pd.Period(str(ano_selecionado), freq='Y')
 
-        # Merge
-        df_agg = pd.concat([pendentes, baixados], axis=1).fillna(0)
+        # 3. Preparar dados agregados por Comarca e Área
         
-        # Cálculo Taxa
-        df_agg['taxa'] = (df_agg['pendentes'] / (df_agg['pendentes'] + df_agg['baixados'])) * 100
-        df_agg = df_agg.fillna(0).round(2).reset_index()
+        # Distribuídos acumulados até o ano
+        dist_acum = df_f[df_f['data_distribuicao'].dt.to_period('Y') <= ano_periodo]
+        dist_acum_group = dist_acum.groupby(['comarca', 'nome_area_acao']).size().rename('dist_acum')
+        
+        # Baixados acumulados até o ano
+        baix_acum = df_f[df_f['data_baixa'].dt.to_period('Y') <= ano_periodo]
+        baix_acum_group = baix_acum.groupby(['comarca', 'nome_area_acao']).size().rename('baix_acum')
+        
+        # Baixados no ano específico
+        baix_ano = df_f[df_f['data_baixa'].dt.to_period('Y') == ano_periodo]
+        baix_ano_group = baix_ano.groupby(['comarca', 'nome_area_acao']).size().rename('baixados')
 
-        # Filtrar possíveis infinitos ou NaNs residuais
+        # 4. Merge e cálculo
+        df_agg = pd.concat([dist_acum_group, baix_acum_group, baix_ano_group], axis=1).fillna(0)
+        
+        # Calcular pendentes
+        df_agg['pendentes'] = (df_agg['dist_acum'] - df_agg['baix_acum']).clip(lower=0)
+        
+        # Calcular taxa de congestionamento
+        denominador = df_agg['pendentes'] + df_agg['baixados']
+        df_agg['taxa'] = np.where(
+            denominador > 0,
+            (df_agg['pendentes'] / denominador) * 100,
+            0
+        ).round(2)
+        
+        df_agg = df_agg.reset_index()
+
+        # 5. Filtrar possíveis infinitos ou NaNs residuais
         df_agg = df_agg[df_agg['taxa'].notna()]
 
-        # Plot
+        # 6. Plot
         fig = px.bar(
             df_agg,
             x='comarca',
             y='taxa',
             color='nome_area_acao',
             barmode='group',
-            title=f'Taxa de Congestionamento - {ano_selecionado}',
+            title=f'Taxa de Congestionamento - {ano_selecionado} (Fluxo Acumulado)',
             text_auto='.2f',
             labels={'taxa': 'Taxa de Congestionamento (%)', 'nome_area_acao': 'Área', 'comarca': 'Comarca'}
         )
@@ -182,10 +201,9 @@ class ProcessosAnalisador:
         
         return fig
 
-    def plotar_graficos_comarca(self, comarca): 
+    def plotar_graficos_comarca(self, comarca):
         """
-        Gera gráfico de linha evolutivo.
-        Para cada ano, calcula o estoque pendente real naquele momento.
+        Gera gráfico de linha evolutivo usando a lógica de fluxo anual acumulado.
         """
         if self.df.empty: return px.line(title="Sem dados")
 
@@ -195,43 +213,48 @@ class ProcessosAnalisador:
         if df_c.empty:
             return px.line(title=f'Sem dados para a comarca: {comarca}')
 
-        # Determinar intervalo de anos para o gráfico
+        # 1. Filtrar janela confiável
+        START = pd.Timestamp('2020-01-01')
+        df_f = df_c[df_c['data_distribuicao'] >= START].copy()
+        
+        if df_f.empty:
+            return px.line(title=f'Sem dados para a comarca: {comarca}')
+
+        # 2. Determinar intervalo de anos para o gráfico
         min_ano = 2020
-        max_ano = 2024 # Ou datetime.now().year
+        max_ano = df_f['data_distribuicao'].dt.year.max()
         anos = list(range(min_ano, max_ano + 1))
         
         dados_grafico = []
 
-        # Áreas disponíveis nessa comarca
-        areas = df_c['nome_area_acao'].unique()
+        # 3. Áreas disponíveis nessa comarca
+        areas = df_f['nome_area_acao'].unique()
 
         for area in areas:
-            df_area = df_c[df_c['nome_area_acao'] == area]
+            df_area = df_f[df_f['nome_area_acao'] == area]
             
             for ano in anos:
-                # Baixados no ano exato
-                n_baixados = len(df_area[df_area['ano_baixa'] == ano])
+                ano_periodo = pd.Period(str(ano), freq='Y')
                 
-                # Pendentes (Acervo até o final do ano)
-                # Distribuídos até o ano E (não baixados OU baixados no futuro)
-                cond_pend = (
-                    (df_c['ano_dist'] == ano) & 
-                    (df_c['ano_baixa'].isna())
-                )
-                '''cond_pend = (
-                    (df_area['ano_dist'] <= ano) & 
-                    ((df_area['ano_baixa'].isna()) | (df_area['ano_baixa'] > ano))
-                )'''
-                n_pendentes = len(df_area[cond_pend])
-
-                if (n_pendentes + n_baixados) > 0:
-                    taxa = (n_pendentes / (n_pendentes + n_baixados)) * 100
+                # Fluxos acumulados até o ano
+                dist_acum = len(df_area[df_area['data_distribuicao'].dt.to_period('Y') <= ano_periodo])
+                baix_acum = len(df_area[df_area['data_baixa'].dt.to_period('Y') <= ano_periodo])
+                
+                # Baixados no ano específico
+                baix_ano = len(df_area[df_area['data_baixa'].dt.to_period('Y') == ano_periodo])
+                
+                # Pendentes no fim do ano
+                pendentes = max(dist_acum - baix_acum, 0)
+                
+                # Calcular taxa de congestionamento
+                denominador = pendentes + baix_ano
+                if denominador > 0:
+                    taxa = (pendentes / denominador) * 100
                 else:
-                    taxa = 0.0 # ou None para quebrar a linha
+                    taxa = 0.0
                 
-                # Só adiciona se houver algum movimento histórico (para não plotar anos vazios antes do início)
-                # Opcional: remover este if se quiser linha zero desde o início
-                if n_pendentes > 0 or n_baixados > 0:
+                # Só adiciona se houver algum movimento
+                if pendentes > 0 or baix_ano > 0:
                     dados_grafico.append({
                         'ano': ano,
                         'nome_area_acao': area,
@@ -241,7 +264,7 @@ class ProcessosAnalisador:
         df_plot = pd.DataFrame(dados_grafico)
 
         if df_plot.empty:
-             return px.line(title=f'Dados insuficientes para gráfico histórico: {comarca}')
+            return px.line(title=f'Dados insuficientes para gráfico histórico: {comarca}')
 
         fig = px.line(
             df_plot,
@@ -249,8 +272,7 @@ class ProcessosAnalisador:
             y='taxa',
             color='nome_area_acao',
             markers=True,
-            title=f'Evolução da Taxa de Congestionamento — {comarca}',
-            labels={'ano': 'Ano', 'taxa': 'Taxa de Congestionamento (%)', 'nome_area_acao': 'Área'}
+            labels={'ano': 'Ano', 'taxa': 'Taxa de Congestionamento (%)', 'nome_area_acao': 'Área de Ação'}
         )
         
         fig.update_layout(
@@ -259,4 +281,3 @@ class ProcessosAnalisador:
         )
         
         return fig
-       
