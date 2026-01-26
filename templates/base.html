@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}Dashboard TJGO{% endblock %}</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+</head>
+<style>
+    * {
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+    }
+    
+    /* Create two columns/boxes that floats next to each other */
+    nav {
+      float: left;
+      width: 15%;
+      height: 1000px ;
+      background: rgb(13, 41, 82);
+    }
+    
+    button {
+      background-color: rgb(231, 240, 243);
+      border-radius: 15px;
+      padding: 15px 32px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #a9a9a9;
+    }
+    
+    article {
+      float: center;
+      padding: 20px;
+      background-color: #ffffff;
+      height: auto;
+      margin: 0 auto; /* Centraliza a tabela na página */
+    }
+    
+    /* Clear floats after the columns */
+    section::after {
+      content: "";
+      display: table;
+      clear: both;
+    }
+    
+    /* Responsive layout - makes the two columns/boxes stack on top of each other instead of next to each other, on small screens */
+    @media (max-width: 600px) {
+      nav, article {
+        width: 100%;
+        height: auto;
+      }
+
+      form-group {
+        font-size: 14px;
+        width: 50%;
+        padding: 8px; 
+        margin: 0 auto; /* Centraliza a tabela na página */
+
+      }
+    }
+
+    form {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        margin-bottom: 20px;
+        margin: 0 auto; /* Centraliza a tabela na página */
+
+    }
+
+    form select, form button {
+        padding: 10px;
+        font-size: 14px;
+        margin-right: 10px;
+        border-radius: 5px;
+        border: 1px solid #ccc;
+        margin: 0 auto; /* Centraliza a tabela na página */
+
+    }
+
+    form select {
+      width: 450px;
+      margin: 0 auto; /* Centraliza a tabela na página */
+
+    }
+
+    form button {
+        background-color: #0d2952;
+        color: rgb(253, 253, 253);
+        border: none;
+        cursor: pointer;
+    }
+
+    form button:hover {
+        background-color: #030b16;
+    }
+
+        /* Estilo para a tabela */
+        .table-responsive {
+            max-height: 400px;
+            overflow-y: auto; /* Permite rolagem vertical */
+            margin-bottom: 20px;
+            max-width: 80%;
+            margin: 0 auto; /* Centraliza a tabela na página */
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse; /* Remove os espaços entre as bordas das células */
+        }
+
+        /* Estilo para as células da tabela */
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border: 1px solid #ddd; /* Borda suave */
+        }
+        
+
+        /* Estilo para cabeçalho da tabela */
+        th {
+            background-color: rgb(231, 240, 243);
+            color: rgb(0, 0, 0);
+            font-weight: bold;
+        }
+
+        /* Estilo para as linhas da tabela */
+        tr:nth-child(even) {
+            background-color: #f2f2f2; /* Linha com fundo alternado */
+        }
+
+        tr:hover {
+            background-color: #ddd; /* Cor de fundo quando passa o mouse sobre a linha */
+        }
+
+        .btn {
+          background-color: #0d2952; 
+          border: #0d2952;
+          padding: 10px;
+          padding-left: 15px;
+          padding-right: 15px;
+        }
+
+        .btn:hover {
+          background-color: #030b16; 
+          border: #030b16;
+        }
+
+</style>
+<body>
+    
+<section>
+
+  <nav>
+      <div class="text-center" style="align-items: center; padding-top: 8cm;">
+          <button style="width: 90%; border: none;">
+              <a href="/" class="container mt-5" style="color: #000000;">Tabela</a>
+          </button>
+          
+          <button style="width: 90%; border: none; margin-top: 10px;">
+              <a href="/grafico" class="container mt-5" style="color: #000000;">Gráfico em Barras</a>
+          </button>
+
+          <button style="width: 90%; border: none; margin-top: 10px;">
+              <a href="/grafico_linha" class="container mt-5" style="color: #000000;">Gráfico em Linha</a>
+          </button>
+      </div>
+  </nav>
+
+
+  <article>
+    <div class="text-center" style="margin-left: 3cm;">
+      <h1 class="text-center" style="align-items: center; padding-bottom: 1cm;">
+        Análise de Processos por Área de Ação
+      </h1>
+
+      <form method="get" action="/">
+          <div class='form-group' style="margin: 0 auto;">
+              <label for='comarca'>Comarca:</label>
+              <select id='comarca' name='comarca'>
+                  <option value="">Selecione uma comarca</option>
+                  <!-- Abaixo serão listadas as comarcas únicas para selecionar -->
+                  {% for comarca in comarcas %}
+                      <option value="{{ comarca }}" {% if comarca == request.args.get('comarca', 'GOIANIRA') %}selected{% endif %}>
+                          {{ comarca }}
+                      </option>
+                  {% endfor %}
+              </select>
+              
+              <label for='ano'>Ano:</label>
+              <select id='ano' name='ano'>
+                  <option value="">Selecione um ano</option>
+                  <!-- Abaixo serão listados os anos únicos para selecionar -->
+                  {% for ano in anos %}
+                      <option value="{{ ano }}" {% if ano == request.args.get('ano', '2020') %}selected{% endif %}>
+                          {{ ano }}
+                      </option>
+                  {% endfor %}
+              </select>
+              <button type="submit">Filtrar</button>
+          </div>
+
+      </form>
+
+      <!-- Exibe a tabela -->
+      <h3 style="padding: 1cm;">Dados da Comarca - {{ request.args.get('comarca', 'GOIÁS') }} </h3>
+      <div class="table-responsive" style="max-height: 800px; margin-bottom: 1cm;">
+        {{ tabela_html|safe }}  <!-- Exibe a tabela convertida em HTML -->
+      </div>      
+
+    </div>
+  </article>
+</section>
+
+</body>
+</html>

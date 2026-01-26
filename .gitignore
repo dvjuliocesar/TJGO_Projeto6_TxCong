@@ -1,0 +1,8 @@
+# Ignorar arquivos
+Limpeza_GPJ.txt
+
+# Ignorar pastas
+uploads/
+.venv/
+__pycache__/
+dataclean/

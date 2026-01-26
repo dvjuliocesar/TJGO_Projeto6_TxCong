@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}Dashboard TJGO{% endblock %}</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+</head>
+<style>
+    * {
+      box-sizing: border-box;
+    }
+    
+    body {
+        font-family: Arial, Helvetica, sans-serif;
+        /* A imagem de fundo é aplicada aqui */
+        background-image: url('sua-imagem.jpg');  /* Substitua 'sua-imagem.jpg' pelo caminho da sua imagem */
+        background-size: cover;  /* Garante que a imagem cubra todo o fundo */
+        background-position: center;  /* Centraliza a imagem */
+        height: 100vh;  /* Garante que o fundo ocupe a altura total da tela */
+        background-repeat: no-repeat;  /* Não repete a imagem */
+    }
+
+    .overlay {
+        background-color: rgba(0, 0, 0, 0.2); /* Cor preta com 20% de opacidade */
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: -1;  /* Coloca a sobreposição atrás do conteúdo */
+    }
+
+    .content {
+        position: relative;
+        z-index: 1;  /* Garante que o conteúdo seja exibido sobre o fundo */
+        color: white;
+        padding: 20px;
+        font-size: 2rem;
+        text-align: center;
+    }    
+    
+    /* Create two columns/boxes that floats next to each other */
+    nav {
+      float: left;
+      width: 15%;
+      height: 1000px ;
+      background: rgb(13, 41, 82);
+    }
+    
+    button {
+      background-color: rgb(231, 240, 243);
+      border-radius: 15px;
+      padding: 15px 32px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #a9a9a9;
+    }
+    
+    article {
+      float: center;
+      padding: 20px;
+      background-color: #ffffff;
+      height: auto;
+      margin: 0 auto;
+    }
+    
+    /* Clear floats after the columns */
+    section::after {
+      content: "";
+      display: table;
+      clear: both;
+    }
+    
+    /* Responsive layout - makes the two columns/boxes stack on top of each other instead of next to each other, on small screens */
+    @media (max-width: 600px) {
+      nav, article {
+        width: 100%;
+        height: auto;
+      }
+
+      form-group {
+        font-size: 14px;
+        width: 50%;
+        padding: 8px; 
+        margin: 0 auto; 
+
+      }
+    }
+
+    form {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        margin-bottom: 20px;
+        margin: 0 auto;
+
+    }
+
+    form select, form button {
+        padding: 10px;
+        font-size: 14px;
+        margin-right: 10px;
+        border-radius: 5px;
+        border: 1px solid #ccc;
+        margin: 0 auto; 
+
+    }
+
+    form select {
+      width: 450px;
+      margin: 0 auto;
+
+    }
+
+    form button {
+        background-color: #0d2952;
+        color: rgb(253, 253, 253);
+        border: none;
+        cursor: pointer;
+    }
+
+    form button:hover {
+        background-color: #030b16;
+    }
+
+
+    .grid-container {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr); /* Cria 3 colunas de largura igual */
+        gap: 20px; /* Espaço entre as colunas */
+        padding-left:1cm;
+    }
+
+    .grid-item {
+        border-radius: 15px;
+        background-color: rgb(231, 240, 243);
+        padding: 20px;
+        text-align: center;
+    }
+
+    .grid-item-especial {
+      border-radius: 15px;
+      background-color: rgb(231, 240, 243);
+      color: rgb(0, 0, 0);
+      font-weight: bold;
+      padding: 20px;
+      text-align: center;    
+    }
+    .graph-container {
+        text-align: center;
+        width: 80%;
+        height: 600px;
+        margin-left: 19%;
+        margin-top: 0.5cm;
+    }
+
+</style>
+<body>
+
+<section>
+    
+    <nav>
+        <div class="text-center" style="align-items: center; padding-top: 8cm;">
+            <button style="width: 90%; border: none;">
+                <a href="/" class="container mt-5" style="color: #000000;">Tabela</a>
+            </button>
+            
+            <button style="width: 90%; border: none; margin-top: 10px;">
+              <a href="/grafico" class="container mt-5" style="color: #000000;">Gráfico em Barras</a>
+          </button>
+
+          <button style="width: 90%; border: none; margin-top: 10px;">
+              <a href="/grafico_linha" class="container mt-5" style="color: #000000;">Gráfico em Linha</a>
+          </button>
+        </div>
+    </nav>
+
+
+  <article class="text-center">
+    <div class="text-center" style="margin-left: 3cm;">
+        <h1 class="text-center" style="align-items: center; padding-bottom: 1cm;">
+          Análise de Processos por Área de Ação
+        </h1>
+  
+        <form method="get" action="/grafico_linha">
+          <div class='form-group' style="margin: 0 auto;">
+              <label for='comarca'>Comarca:</label>
+              <select id='comarca' name='comarca'>
+                  <!-- Já abre com selected_comarca -->
+                  {% for c in comarcas %}
+                      <option value="{{ c }}" {% if c == selected_comarca %}selected{% endif %}>{{ c }}</option>
+                  {% endfor %}
+              </select>
+              <button type="submit">Filtrar</button>
+          </div>
+        </form>
+
+        <h3 style="padding: 1cm; padding-left: 0cm;">
+          Taxa de Congestionamento (%) X Ano - {{ selected_comarca }}
+        </h3>
+    </div>
+
+    <div class="text-center graph-container">
+        {{figura_html|safe}} <!-- Exibe a figura convertida em HTML -->
+    </div>
+
+  </article>
+</section>
+
+</body>
+</html>
