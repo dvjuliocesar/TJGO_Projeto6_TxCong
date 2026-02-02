@@ -6,3 +6,5 @@ uploads/
 .venv/
 __pycache__/
 dataclean/
+results/
+results_concat/
