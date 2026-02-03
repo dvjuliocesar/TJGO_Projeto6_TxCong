@@ -163,10 +163,6 @@
           <button style="width: 90%; border: none;">
               <a href="/" class="container mt-5" style="color: #000000;">Tabela</a>
           </button>
-          
-          <button style="width: 90%; border: none; margin-top: 10px;">
-              <a href="/grafico" class="container mt-5" style="color: #000000;">Gráfico em Barras</a>
-          </button>
 
           <button style="width: 90%; border: none; margin-top: 10px;">
               <a href="/grafico_linha" class="container mt-5" style="color: #000000;">Gráfico em Linha</a>
@@ -210,10 +206,10 @@
         </form>
 
       <!-- Exibe a tabela -->
-      <h3 style="padding: 1cm;">Dados da Comarca - {{ request.args.get('comarca', 'GOIÁS') }} </h3>
+      <h3 style="padding: 1cm;">Dados da Comarca - {{ selected_comarca }} - Ano {{ selected_ano }}</h3>
       <div class="table-responsive" style="max-height: 800px; margin-bottom: 1cm;">
         {{ tabela_html|safe }}  <!-- Exibe a tabela convertida em HTML -->
-      </div>      
+      </div>    
 
     </div>
   </article>
