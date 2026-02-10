@@ -178,35 +178,46 @@ class ProcessosAnalisador:
 
     def plotar_graficos_comarca(self, comarca):
         """
-        Gera gráfico de linha usando dados pré-calculados
-        Versão simplificada com hover personalizado
+        Gera gráfico de linha filtrado por áreas de ação específicas.
         """
         if self.df.empty: 
             return px.line(title="Sem dados disponíveis")
         
-        print(f"\nGerando gráfico para comarca: {comarca}")
+        # Lista de áreas permitidas (exatamente como no seu pedido)
+        areas_desejadas = [
+            'civel', 
+            'criminal', 
+            'infancia e juventude civel', 
+            'infancia e juventude infracional', 
+            'juizado especial civel', 
+            'juizado especial criminal'
+        ]
         
-        # Filtrar dados da comarca
         try:
+            # 1. Filtrar Comarca
             df_comarca = self.df[self.df['comarca'] == comarca].copy()
+            
+            # 2. Filtrar Áreas de Ação específicas
+            # O .str.lower() ajuda a evitar erros de maiúsculas/minúsculas
+            df_comarca = df_comarca[df_comarca['nome_area_acao'].str.lower().isin(areas_desejadas)]
+            
         except Exception as e:
-            print(f"Erro ao filtrar comarca: {e}")
-            return px.line(title=f"Erro ao filtrar comarca: {comarca}")
+            print(f"Erro ao filtrar dados: {e}")
+            return px.line(title=f"Erro ao filtrar dados: {comarca}")
         
         if df_comarca.empty:
-            return px.line(title=f'Sem dados para a comarca: {comarca}')
+            return px.line(title=f'Sem dados para as áreas selecionadas em: {comarca}')
         
-        # Processar dados
+        # Processar dados numéricos
         try:
             df_comarca['ano_ref'] = pd.to_numeric(df_comarca['ano_ref'], errors='coerce')
             df_comarca['Taxa_Cong_anual (%)'] = pd.to_numeric(df_comarca['Taxa_Cong_anual (%)'], errors='coerce')
-            df_comarca = df_comarca.sort_values('ano_ref')
+            df_comarca = df_comarca.sort_values(['nome_area_acao', 'ano_ref'])
         except:
             return px.line(title=f'Erro ao processar dados para: {comarca}')
         
         # Criar gráfico
         try:
-            # Criar figura básica
             fig = px.line(
                 df_comarca,
                 x='ano_ref',
@@ -215,50 +226,43 @@ class ProcessosAnalisador:
                 markers=True,
                 title=f'Taxa de Congestionamento por Ano - {comarca}',
                 labels={
-                    'ano_ref': 'Ano',  # Eixo X agora mostra 'Ano'
-                    'Taxa_Cong_anual (%)': 'Taxa de Congestionamento (%)',  # Eixo Y
-                    'nome_area_acao': 'Área de Ação'  # Legenda agora mostra 'Área de Ação'
+                    'ano_ref': 'Ano',
+                    'Taxa_Cong_anual (%)': 'Taxa de Congestionamento (%)',
+                    'nome_area_acao': 'Área de Ação'
                 }
             )
             
-            # Configurar hover para mostrar apenas informações da linha específica
             fig.update_layout(
-                hovermode='closest',  # Apenas mostra a linha mais próxima do cursor
+                hovermode='closest',
                 yaxis_range=[0, 105],
                 xaxis=dict(tickmode='linear', dtick=1)
             )
             
-            # Personalizar cada linha individualmente
+            # Customização do Hover
             for trace in fig.data:
-                # Obter o nome da área de ação desta linha
                 area_name = trace.name
-                
-                # Filtrar dados apenas para esta área
                 area_data = df_comarca[df_comarca['nome_area_acao'] == area_name]
                 
-                # Criar texto do hover personalizado
                 hover_texts = []
-                for _, row in area_data.sort_values('ano_ref').iterrows():
+                for _, row in area_data.iterrows():
                     text = f"<b>{area_name}</b><br>"
                     text += f"Ano: {int(row['ano_ref'])}<br>"
                     text += f"Taxa: {row['Taxa_Cong_anual (%)']:.2f}%<br>"
                     
-                    # Adicionar dados adicionais se disponíveis
-                    if 'Distribuidos_ano' in row:
-                        text += f"Distribuídos: {row['Distribuidos_ano']:.0f}<br>"
-                    if 'Baixados_ano' in row:
-                        text += f"Baixados: {row['Baixados_ano']:.0f}<br>"
-                    if 'Pendentes_ano' in row:
-                        text += f"Pendentes: {row['Pendentes_ano']:.0f}<br>"
+                    # Campos opcionais
+                    for campo, label in [('Distribuidos_ano', 'Distribuídos'), 
+                                        ('Baixados_ano', 'Baixados'), 
+                                        ('Pendentes_ano', 'Pendentes')]:
+                        if campo in row:
+                            text += f"{label}: {row[campo]:.0f}<br>"
                     
                     hover_texts.append(text)
                 
-                # Atribuir os textos ao trace
                 trace.text = hover_texts
                 trace.hovertemplate = '%{text}<extra></extra>'
             
             return fig
             
         except Exception as e:
-            print(f"Erro: {e}")
+            print(f"Erro ao gerar gráfico: {e}")
             return px.line(title=f'Erro ao gerar gráfico')
