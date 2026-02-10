@@ -183,7 +183,7 @@ class ProcessosAnalisador:
         if self.df.empty: 
             return px.line(title="Sem dados disponíveis")
         
-        # Lista de áreas permitidas (exatamente como no seu pedido)
+        # Lista de áreas permitidas
         areas_desejadas = [
             'civel', 
             'criminal', 
